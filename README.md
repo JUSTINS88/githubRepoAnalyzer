@@ -1,15 +1,26 @@
 # GitHub Repo Analyzer
 
-A CLI tool written in Go that fetches public repository data for one or more
-GitHub users concurrently, then displays aggregate statistics (total stars,
-forks, and top languages used).
+A CLI tool written in Go that fetches public repository data for one or more GitHub users concurrently.
+
+## Status
+
+Work in progress. The program currently fetches the repository list for each username and prints it to the terminal. Aggregate statistics (total stars, total forks, top language) are still under development.
 
 ## Features
 
-- Fetch repository data from the GitHub REST API
-- Analyze multiple usernames **concurrently** using goroutines
-- Aggregate statistics: total stars, total forks, most-used language
-- Clean, idiomatic Go project structure (separated into packages)
+- Fetch repository data from the GitHub REST API (`/users/{username}/repos`)
+- Process multiple usernames concurrently using goroutines and channels
+- Display stars and language for each repository
+
+### Planned
+
+- Aggregate statistics: total stars, total forks, top language
+- HTTP status checking and timeouts on the HTTP client
+- Pagination for users with more than 100 repositories
+- Context for limiting the duration of each request
+- Worker pool for large numbers of usernames
+- Unit tests with `httptest`
+- Export results to JSON or CSV
 
 ## Why This Project?
 
@@ -18,93 +29,86 @@ This project was built to practice:
 - Making HTTP requests and decoding JSON responses in Go
 - Structuring a Go project across multiple packages
 - Using goroutines and channels to fetch data concurrently
-- Avoiding race conditions when multiple goroutines produce results
+- Avoiding race conditions when multiple goroutines send results
 
 ## Project Structure
 
-\`\`\`
-repo-analyzer/
+```
+githubRepoAnalyzer/
 ├── go.mod
 ├── main.go
 ├── github/
-│   └── client.go      # HTTP requests to the GitHub API, JSON decoding
+│   └── client.go      # HTTP requests to the GitHub API and JSON decoding
 ├── stats/
-│   └── analyzer.go    # Aggregation logic (totals, top language, etc.)
+│   └── analyzer.go    # Aggregate statistics (planned)
 └── models/
-    └── repo.go         # Repo struct definition
-\`\`\`
+    └── repo.go        # Repo struct definition
+```
+
+Note: `client.go` currently uses `package ghclient`. It will be renamed to `package github` to match the structure above.
 
 ## How It Works
 
-1. The program accepts one or more GitHub usernames as input.
-2. For each username, a goroutine is spawned to fetch that user's repos
-   from the GitHub API.
-3. Each goroutine sends its result (or error) back through a channel.
-4. The main goroutine collects all results once every fetch completes.
-5. Aggregate statistics are calculated and printed to the console.
+1. The program accepts one or more GitHub usernames as command-line arguments.
+2. Each username is processed in its own goroutine, which calls `FetchRepos`.
+3. Each goroutine sends its result (repositories or an error) to a channel.
+4. The main goroutine receives exactly one result per username from the channel.
+5. The results are printed to the console.
 
 ## Concurrency Design
 
-Fetching is done concurrently instead of sequentially to reduce total
-wait time when analyzing multiple users.
+Data is fetched concurrently so that total wait time does not grow linearly with the number of usernames.
 
-\`\`\`
-Sequential:  fetch(alice) -> fetch(bob) -> fetch(carol)   (slow, additive time)
-Concurrent:  fetch(alice) ┐
-             fetch(bob)   ├─ all run in parallel           (fast, ~max time)
-             fetch(carol) ┘
-\`\`\`
+```
+Sequential: fetch(alice) -> fetch(bob) -> fetch(carol)   (time adds up)
+Concurrent: fetch(alice) ┐
+            fetch(bob)   ├─ run in parallel               (time ≈ slowest fetch)
+            fetch(carol) ┘
+```
 
-Each goroutine communicates its result back to the main goroutine via a
-channel, rather than writing to shared memory directly. This avoids the
-need for manual locking and keeps the data flow easy to reason about.
-
-## Usage
-
-\`\`\`bash
-go run main.go alice bob carol
-\`\`\`
-
-### Example Output
-
-\`\`\`
-Fetching repositories for 3 users...
-
-GitHub Stats Summary
-=====================
-Total Repos:  42
-Total Stars:  1,204
-Total Forks:  310
-Top Language: Go
-
-Per User:
-  alice  - 15 repos, 500 stars
-  bob    - 20 repos, 600 stars
-  carol  - 7 repos,  104 stars
-\`\`\`
+Goroutines do not write to shared memory. Each result is sent to the main goroutine through a channel, so no mutex is needed for this design.
 
 ## Installation
 
-\`\`\`bash
+```bash
 git clone https://github.com/JUSTINS88/githubRepoAnalyzer.git
-cd repo-analyzer
+cd githubRepoAnalyzer
 go mod tidy
-\`\`\`
+```
 
-## Possible Future Improvements
+## Usage
 
-- [ ] Cache API responses to avoid redundant requests
-- [ ] Add filtering by language or last-updated date
-- [ ] Export results to JSON or CSV
-- [ ] Add rate-limit handling for the GitHub API
-- [ ] Add unit tests for the `stats` package
+```bash
+go run . alice bob carol
+```
+
+## Example Output
+
+Current output (per repository):
+
+```
+This is repos for alice:
+1 (stars: 12) hello-go Language: Go
+2 (stars: 0) dotfiles Language: Unknown
+```
+
+Target output once aggregation is complete:
+
+```
+GitHub Stats Summary
+
+Total Repos: 42
+Total Stars: 1,204
+Total Forks: 310
+Top Language: Go
+```
 
 ## What I Learned
 
-- How to design concurrent workflows in Go using goroutines and channels
-- How to avoid goroutine leaks by matching the number of sends and receives
-- How to structure a multi-package Go project
-- How to decode JSON API responses into Go structs
+- Designing concurrent workflows in Go with goroutines and channels
+- Matching the number of sends and receives to avoid deadlocks
+- Structuring a Go project across multiple packages
+- Decoding JSON API responses into Go structs
 
 ## License
 
