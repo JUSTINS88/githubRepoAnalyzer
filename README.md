@@ -86,7 +86,7 @@ Per User:
 ## Installation
 
 \`\`\`bash
-git clone https://github.com/<your-username>/repo-analyzer.git
+git clone https://github.com/JUSTINS88/githubRepoAnalyzer.git
 cd repo-analyzer
 go mod tidy
 \`\`\`
